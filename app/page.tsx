@@ -1,78 +1,94 @@
 'use client';
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
 
-export default function JoinPage() {
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+export default function Home() {
+  const [memberId, setMemberId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleJoin = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleUpdatePoints = async (action) => {
+    if (!memberId) {
+      alert('Please enter or scan a Member ID');
+      return;
+    }
+
     setLoading(true);
+    setMessage('');
 
     try {
-      const res = await fetch('/api/create-member', {
+      const res = await fetch('/api/add-points', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone }),
+        body: JSON.stringify({
+          memberId,
+          spendAmount: action === 'ADD' ? parseFloat(amount) : undefined,
+          action
+        })
       });
 
       const data = await res.json();
 
-      if (res.ok && data.passUrl) {
-        window.location.href = data.passUrl;
-      } else {
-        alert('Error creating pass: ' + (data.error || 'No pass URL returned from WalletWallet'));
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update points');
       }
-    } catch {
-      alert('Network error. Please try again.');
+
+      if (action === 'REDEEM') {
+        setMessage(`Success! Redeemed reward. New Balance: ${data.newBalance} pts`);
+      } else {
+        setMessage(`Success! Added ${data.pointsEarned} pts. New Balance: ${data.newBalance} pts`);
+      }
+      setAmount('');
+    } catch (err) {
+      setMessage(`Error: ${err.message}`);
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '40px auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }}>Join GULA Rewards 🍔</h1>
-      <p style={{ textAlign: 'center', color: '#4b5563', marginBottom: '20px' }}>
-        Enter your details to add your digital loyalty pass to Apple Wallet.
-      </p>
-      
-      <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <main style={{ maxWidth: '400px', margin: '40px auto', padding: '20px', fontFamily: 'sans-serif' }}>
+      <h2>GULA Scanner Terminal</h2>
+
+      <div style={{ marginBottom: '15px' }}>
+        <label>Customer Member ID:</label>
         <input 
           type="text" 
-          placeholder="Your Full Name" 
-          required 
-          value={name} 
-          onChange={(e) => setName(e.target.value)}
-          style={{ padding: '12px', fontSize: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+          value={memberId} 
+          onChange={(e) => setMemberId(e.target.value)} 
+          placeholder="Scan QR or paste ID" 
+          style={{ width: '100%', padding: '10px', marginTop: '5px' }}
         />
+      </div>
+
+      <div style={{ marginBottom: '15px' }}>
+        <label>Purchase Amount ($):</label>
         <input 
-          type="tel" 
-          placeholder="Phone Number" 
-          required 
-          value={phone} 
-          onChange={(e) => setPhone(e.target.value)}
-          style={{ padding: '12px', fontSize: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+          type="number" 
+          value={amount} 
+          onChange={(e) => setAmount(e.target.value)} 
+          placeholder="0.00" 
+          style={{ width: '100%', padding: '10px', marginTop: '5px' }}
         />
-        <button 
-          type="submit" 
-          disabled={loading} 
-          style={{ 
-            padding: '14px', 
-            background: '#000', 
-            color: '#fff', 
-            fontSize: '16px', 
-            fontWeight: 'bold', 
-            borderRadius: '8px',
-            border: 'none',
-            cursor: 'pointer',
-            opacity: loading ? 0.7 : 1
-          }}
-        >
-          {loading ? 'Creating Pass...' : 'Add to Apple Wallet'}
-        </button>
-      </form>
-    </div>
+      </div>
+
+      <button 
+        onClick={() => handleUpdatePoints('ADD')} 
+        disabled={loading}
+        style={{ width: '100%', padding: '12px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '5px', fontWeight: 'bold', marginBottom: '10px' }}
+      >
+        {loading ? 'Processing...' : 'Add Points ($1 = 10 pts)'}
+      </button>
+
+      <button 
+        onClick={() => handleUpdatePoints('REDEEM')} 
+        disabled={loading}
+        style={{ width: '100%', padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '5px', fontWeight: 'bold' }}
+      >
+        {loading ? 'Processing...' : 'Redeem Free Reward (1,000 pts)'}
+      </button>
+
+      {message && <p style={{ marginTop: '20px', fontWeight: 'bold', textAlign: 'center' }}>{message}</p>}
+    </main>
   );
 }
