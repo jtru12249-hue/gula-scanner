@@ -38,9 +38,10 @@ export async function POST(request) {
     // 1. Update Firestore
     await updateDoc(memberRef, { points: newBalance });
 
-    // 2. Push update including the Barcode/QR Code back to WalletWallet
+    // 2. Push update to WalletWallet
     if (memberData.passId) {
       const logoUrl = 'https://i.imgur.com/Q6JfH2E.jpeg'; 
+      const qrData = String(memberId);
 
       const walletRes = await fetch(`https://api.walletwallet.dev/api/passes/${memberData.passId}`, {
         method: 'PUT',
@@ -55,12 +56,25 @@ export async function POST(request) {
           labelColor: 'rgb(255, 107, 0)',       
           logoURL: logoUrl,
           iconURL: logoUrl,
-          // Include barcode payload explicitly so Apple Wallet keeps rendering the QR Code
+          
+          // Legacy barcode format (iOS 8 and below)
           barcode: {
             format: 'PKBarcodeFormatQR',
-            message: memberId,
-            messageEncoding: 'iso-8859-1'
+            message: qrData,
+            messageEncoding: 'iso-8859-1',
+            altText: qrData
           },
+          
+          // Modern barcodes array format (iOS 9+)
+          barcodes: [
+            {
+              format: 'PKBarcodeFormatQR',
+              message: qrData,
+              messageEncoding: 'iso-8859-1',
+              altText: qrData
+            }
+          ],
+
           primaryFields: [
             { key: 'points_balance', label: 'POINTS', value: String(newBalance) }
           ],
