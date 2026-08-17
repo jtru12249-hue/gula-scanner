@@ -10,7 +10,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 });
     }
 
-    // 1. Create unique document in Firebase
+    // 1. Create unique member entry in Firebase
     const docRef = await addDoc(collection(db, 'members'), {
       name,
       phone,
@@ -20,7 +20,7 @@ export async function POST(request) {
 
     const uniqueMemberId = docRef.id;
 
-    // 2. Request new pass from WalletWallet API
+    // 2. Call WalletWallet API with exact schema parameters
     const walletRes = await fetch('https://api.walletwallet.dev/api/passes', {
       method: 'POST',
       headers: {
@@ -28,52 +28,45 @@ export async function POST(request) {
         'Authorization': `Bearer ${process.env.WALLETWALLET_API_KEY}`
       },
       body: JSON.stringify({
+        barcodeValue: uniqueMemberId,
+        barcodeFormat: 'QR',
         logoText: 'GULA EXPRESS',
-        backgroundColor: 'rgb(26, 26, 26)',
-        foregroundColor: 'rgb(255, 255, 255)',
-        labelColor: 'rgb(255, 107, 0)',
+        colorPreset: 'red',
+        color: '#ac1b1b',
         logoURL: 'https://i.imgur.com/Q6JfH2E.jpeg',
         iconURL: 'https://i.imgur.com/Q6JfH2E.jpeg',
-        barcode: {
-          format: 'PKBarcodeFormatQR',
-          message: uniqueMemberId,
-          messageEncoding: 'iso-8859-1',
-          altText: uniqueMemberId
-        },
-        primaryFields: [{ key: 'points_balance', label: 'POINTS', value: '0' }],
+        primaryFields: [
+          { label: 'POINTS', value: '0' }
+        ],
         secondaryFields: [
-          { label: 'MEMBER', value: name },
-          { label: 'NEXT REWARD', value: 'Free Cachapa at 1,000 pts' }
+          { label: 'MEMBER', value: name.toUpperCase() },
+          { label: 'NEXT REWARD', value: 'FREE REWARD AT 1,000 POINTS!!' }
+        ],
+        backFields: [
+          { label: 'Program Details', value: 'Earn 10 points for every $1 spent at GULA EXPRESS.' }
         ]
       })
     });
 
-    const passData = await walletRes.json();
-    console.log('WalletWallet Create Pass Response:', passData);
+    const passData = await walletRes.json().catch(() => ({}));
 
     if (!walletRes.ok) {
       return NextResponse.json({ 
-        error: passData.message || passData.error || 'Failed to generate pass on WalletWallet' 
+        error: passData.message || JSON.stringify(passData) 
       }, { status: walletRes.status });
     }
 
-    // Save WalletWallet pass ID if returned
+    // Save pass ID to Firebase record
     const passId = passData.id || passData._id || passData.serialNumber;
     if (passId) {
       await updateDoc(docRef, { passId });
     }
 
-    // Resolve public download URL
     const passUrl = passData.downloadUrl || passData.url || passData.passUrl || passData.appleWalletUrl;
 
-    return NextResponse.json({ 
-      success: true, 
-      memberId: uniqueMemberId, 
-      passUrl
-    });
+    return NextResponse.json({ success: true, memberId: uniqueMemberId, passUrl });
 
   } catch (error) {
-    console.error('Error creating member:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server Error' }, { status: 500 });
   }
 }
