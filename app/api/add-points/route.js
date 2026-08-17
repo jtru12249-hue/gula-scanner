@@ -38,11 +38,8 @@ export async function POST(request) {
     // 1. Update Firestore
     await updateDoc(memberRef, { points: newBalance });
 
-    // 2. Push update to WalletWallet
+    // 2. Push update to WalletWallet using exact parameters
     if (memberData.passId) {
-      const logoUrl = 'https://i.imgur.com/Q6JfH2E.jpeg'; 
-      const qrData = String(memberId);
-
       const walletRes = await fetch(`https://api.walletwallet.dev/api/passes/${memberData.passId}`, {
         method: 'PUT',
         headers: {
@@ -50,37 +47,19 @@ export async function POST(request) {
           'Authorization': `Bearer ${process.env.WALLETWALLET_API_KEY}`
         },
         body: JSON.stringify({
+          barcodeValue: String(memberId),
+          barcodeFormat: 'QR',
           logoText: 'GULA EXPRESS',
-          backgroundColor: 'rgb(26, 26, 26)',  
-          foregroundColor: 'rgb(255, 255, 255)', 
-          labelColor: 'rgb(255, 107, 0)',       
-          logoURL: logoUrl,
-          iconURL: logoUrl,
-          
-          // Legacy barcode format (iOS 8 and below)
-          barcode: {
-            format: 'PKBarcodeFormatQR',
-            message: qrData,
-            messageEncoding: 'iso-8859-1',
-            altText: qrData
-          },
-          
-          // Modern barcodes array format (iOS 9+)
-          barcodes: [
-            {
-              format: 'PKBarcodeFormatQR',
-              message: qrData,
-              messageEncoding: 'iso-8859-1',
-              altText: qrData
-            }
-          ],
-
+          colorPreset: 'red',
+          color: '#ac1b1b',
+          logoURL: 'https://i.imgur.com/Q6JfH2E.jpeg',
+          iconURL: 'https://i.imgur.com/Q6JfH2E.jpeg',
           primaryFields: [
-            { key: 'points_balance', label: 'POINTS', value: String(newBalance) }
+            { label: 'POINTS', value: String(newBalance) }
           ],
           secondaryFields: [
-            { label: 'MEMBER', value: memberData.name || 'Gold Status' },
-            { label: 'NEXT REWARD', value: 'Free Cachapa at 1,000 pts' }
+            { label: 'MEMBER', value: (memberData.name || 'GULA MEMBER').toUpperCase() },
+            { label: 'NEXT REWARD', value: 'FREE REWARD AT 1,000 POINTS!!' }
           ],
           backFields: [
             { label: 'Program Details', value: 'Earn 10 points for every $1 spent at GULA EXPRESS.' }
@@ -89,7 +68,7 @@ export async function POST(request) {
       });
 
       const resData = await walletRes.json().catch(() => ({}));
-      console.log('WalletWallet API response status:', walletRes.status, resData);
+      console.log('WalletWallet update response status:', walletRes.status, resData);
     }
 
     return NextResponse.json({
