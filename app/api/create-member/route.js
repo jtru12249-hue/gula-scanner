@@ -21,7 +21,7 @@ export async function POST(request) {
     const uniqueMemberId = docRef.id;
     const apiKey = 'ww_live_a46693b6b87649115a26862018d83c75';
 
-    // 2. Request new pass from WalletWallet
+    // 2. Request pass creation from WalletWallet
     const walletRes = await fetch('https://api.walletwallet.dev/api/passes', {
       method: 'POST',
       headers: {
@@ -64,20 +64,14 @@ export async function POST(request) {
       await updateDoc(docRef, { passId });
     }
 
-    // Try primary download fields or standard file routes
+    // Construct valid download URL
     const passUrl = passData.downloadUrl || 
                     passData.url || 
                     passData.passUrl || 
                     passData.appleWalletUrl || 
-                    (passId ? `https://api.walletwallet.dev/api/passes/${passId}/file` : null) ||
                     (passId ? `https://api.walletwallet.dev/p/${passId}` : null);
 
-    return NextResponse.json({ 
-      success: true, 
-      memberId: uniqueMemberId, 
-      passUrl,
-      debugResponse: passData 
-    });
+    return NextResponse.json({ success: true, memberId: uniqueMemberId, passUrl });
 
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Server Exception' }, { status: 500 });
