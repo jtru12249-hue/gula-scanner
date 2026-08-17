@@ -10,7 +10,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 });
     }
 
-    // 1. Save member to Firebase to generate a unique ID
+    // 1. Save member to Firebase
     const docRef = await addDoc(collection(db, 'members'), {
       name,
       phone,
@@ -21,7 +21,7 @@ export async function POST(request) {
     const uniqueMemberId = docRef.id;
     const apiKey = 'ww_live_a46693b6b87649115a26862018d83c75';
 
-    // 2. Request unique pass from WalletWallet using exact schema
+    // 2. Request new pass from WalletWallet
     const walletRes = await fetch('https://api.walletwallet.dev/api/passes', {
       method: 'POST',
       headers: {
@@ -53,20 +53,28 @@ export async function POST(request) {
 
     if (!walletRes.ok) {
       return NextResponse.json({ 
-        error: `WalletWallet rejected request (${walletRes.status}): ${passData.message || JSON.stringify(passData)}` 
+        error: `WalletWallet error (${walletRes.status}): ${passData.message || JSON.stringify(passData)}` 
       }, { status: walletRes.status });
     }
 
-    const passId = passData.id || passData._id || passData.serialNumber;
+    // Extract generated pass ID
+    const passId = passData.id || passData._id || passData.serialNumber || passData.passId;
+
     if (passId) {
       await updateDoc(docRef, { passId });
     }
 
-    const passUrl = passData.downloadUrl || passData.url || passData.passUrl || passData.appleWalletUrl;
+    // Extract direct URL or construct download endpoint dynamically
+    const passUrl = passData.downloadUrl || 
+                    passData.url || 
+                    passData.passUrl || 
+                    passData.appleWalletUrl || 
+                    (passId ? `https://api.walletwallet.dev/api/passes/${passId}/download` : null) ||
+                    (passId ? `https://api.walletwallet.dev/p/${passId}` : null);
 
     if (!passUrl) {
       return NextResponse.json({ 
-        error: 'Pass generated, but no download URL returned',
+        error: 'Pass generated, but could not resolve download link.',
         rawResponse: passData 
       }, { status: 500 });
     }
