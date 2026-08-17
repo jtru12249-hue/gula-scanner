@@ -22,26 +22,23 @@ export async function POST(request) {
     let newBalance = currentPoints;
     let pointsEarned = 0;
 
-    // Handle Reward Redemption
     if (action === 'REDEEM') {
       if (currentPoints < 1000) {
         return NextResponse.json({ error: 'Insufficient points (1,000 required)' }, { status: 400 });
       }
       newBalance = currentPoints - 1000;
-    } 
-    // Handle Adding Points from Purchase
-    else {
+    } else {
       if (spendAmount === undefined || isNaN(spendAmount)) {
         return NextResponse.json({ error: 'Valid spend amount is required' }, { status: 400 });
       }
-      pointsEarned = Math.floor(spendAmount * 10); // 10 points per $1
+      pointsEarned = Math.floor(spendAmount * 10);
       newBalance = currentPoints + pointsEarned;
     }
 
     // 1. Update Firestore
     await updateDoc(memberRef, { points: newBalance });
 
-    // 2. Push update using your direct Imgur image link
+    // 2. Push update including the Barcode/QR Code back to WalletWallet
     if (memberData.passId) {
       const logoUrl = 'https://i.imgur.com/Q6JfH2E.jpeg'; 
 
@@ -58,6 +55,12 @@ export async function POST(request) {
           labelColor: 'rgb(255, 107, 0)',       
           logoURL: logoUrl,
           iconURL: logoUrl,
+          // Include barcode payload explicitly so Apple Wallet keeps rendering the QR Code
+          barcode: {
+            format: 'PKBarcodeFormatQR',
+            message: memberId,
+            messageEncoding: 'iso-8859-1'
+          },
           primaryFields: [
             { key: 'points_balance', label: 'POINTS', value: String(newBalance) }
           ],
