@@ -82,4 +82,4 @@ export async function POST(request) {
     console.error('Error updating points:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
+}
