@@ -6,6 +6,10 @@ export async function POST(request) {
   try {
     const { name, phone } = await request.json();
 
+    if (!name || !phone) {
+      return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 });
+    }
+
     // 1. Create unique document in Firebase
     const docRef = await addDoc(collection(db, 'members'), {
       name,
@@ -14,9 +18,9 @@ export async function POST(request) {
       createdAt: new Date()
     });
 
-    const uniqueMemberId = docRef.id; // Unique ID created by Firebase
+    const uniqueMemberId = docRef.id;
 
-    // 2. Request a new pass from WalletWallet API for this user
+    // 2. Request new pass from WalletWallet API
     const walletRes = await fetch('https://api.walletwallet.dev/api/passes', {
       method: 'POST',
       headers: {
@@ -45,20 +49,31 @@ export async function POST(request) {
     });
 
     const passData = await walletRes.json();
+    console.log('WalletWallet Create Pass Response:', passData);
 
-    // Save WalletWallet pass ID to Firebase record
-    if (passData.id) {
-      await updateDoc(docRef, { passId: passData.id });
+    if (!walletRes.ok) {
+      return NextResponse.json({ 
+        error: passData.message || passData.error || 'Failed to generate pass on WalletWallet' 
+      }, { status: walletRes.status });
     }
+
+    // Save WalletWallet pass ID if returned
+    const passId = passData.id || passData._id || passData.serialNumber;
+    if (passId) {
+      await updateDoc(docRef, { passId });
+    }
+
+    // Resolve public download URL
+    const passUrl = passData.downloadUrl || passData.url || passData.passUrl || passData.appleWalletUrl;
 
     return NextResponse.json({ 
       success: true, 
       memberId: uniqueMemberId, 
-      passUrl: passData.downloadUrl || passData.url 
+      passUrl
     });
 
   } catch (error) {
     console.error('Error creating member:', error);
-    return NextResponse.json({ error: 'Failed to create pass' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
