@@ -57,29 +57,27 @@ export async function POST(request) {
       }, { status: walletRes.status });
     }
 
-    // Extract generated pass ID
-    const passId = passData.id || passData._id || passData.serialNumber || passData.passId;
+    // Extract ID or serial number
+    const passId = passData.id || passData._id || passData.serialNumber || passData.serial;
 
     if (passId) {
       await updateDoc(docRef, { passId });
     }
 
-    // Extract direct URL or construct download endpoint dynamically
+    // Try primary download fields or standard file routes
     const passUrl = passData.downloadUrl || 
                     passData.url || 
                     passData.passUrl || 
                     passData.appleWalletUrl || 
-                    (passId ? `https://api.walletwallet.dev/api/passes/${passId}/download` : null) ||
+                    (passId ? `https://api.walletwallet.dev/api/passes/${passId}/file` : null) ||
                     (passId ? `https://api.walletwallet.dev/p/${passId}` : null);
 
-    if (!passUrl) {
-      return NextResponse.json({ 
-        error: 'Pass generated, but could not resolve download link.',
-        rawResponse: passData 
-      }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, memberId: uniqueMemberId, passUrl });
+    return NextResponse.json({ 
+      success: true, 
+      memberId: uniqueMemberId, 
+      passUrl,
+      debugResponse: passData 
+    });
 
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Server Exception' }, { status: 500 });
