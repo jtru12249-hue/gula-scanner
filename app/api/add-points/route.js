@@ -8,14 +8,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing Member ID' }, { status: 400 });
     }
 
-    // 1. Calculate new points (10 points per dollar spent)
     const pointsToAdd = spendAmount ? Math.floor(spendAmount * 10) : 0;
     
-    // TODO: Fetch the member's current total points from your database/Firebase here if needed
-    const currentPoints = 100; // Replace with actual database lookup
+    // Fetch total or set calculated total
+    const currentPoints = 100; // Replace with database lookup if used
     const updatedTotal = currentPoints + pointsToAdd;
 
-    // 2. Send PATCH update to WalletWallet so pass design and QR code stay untouched
+    // PATCH update matching the exact Pass Editor keys
     const walletRes = await fetch(`https://api.walletwallet.dev/v1/passes/${memberId}`, {
       method: 'PATCH',
       headers: {
@@ -23,32 +22,35 @@ export async function POST(req: Request) {
         'Authorization': `Bearer ${process.env.WALLETWALLET_API_KEY}`,
       },
       body: JSON.stringify({
-        fields: {
-          points: updatedTotal,
-        },
+        primaryFields: [
+          {
+            key: 'POINTS',
+            value: updatedTotal.toString(),
+            label: 'POINTS',
+          },
+        ],
         barcode: {
           type: 'QR',
-          value: memberId, // Preserves the static QR code
+          value: memberId,
         },
       }),
     });
 
     if (!walletRes.ok) {
-      const errData = await walletRes.text();
-      console.error('WalletWallet API error:', errData);
-      throw new Error('Failed to update WalletWallet pass');
+      const errText = await walletRes.text();
+      console.error('WalletWallet error:', errText);
+      throw new Error('Failed to update pass');
     }
 
     return NextResponse.json({ 
       success: true, 
-      pointsAdded: pointsToAdd,
+      pointsAdded: pointsToAdd, 
       newTotal: updatedTotal 
     });
 
   } catch (error: any) {
-    console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Internal Server Error' }, 
+      { error: error.message || 'Server Error' }, 
       { status: 500 }
     );
   }
