@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { useState, useEffect } from 'react';
 
 export default function ScannerPage() {
   const [scanning, setScanning] = useState(false);
@@ -10,29 +9,33 @@ export default function ScannerPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let scanner;
-    if (scanning) {
-      scanner = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        /* verbose= */ false
-      );
+    let html5QrcodeScanner;
 
-      scanner.render(
-        async (decodedText) => {
-          scanner.clear();
-          setScanning(false);
-          await handleAddPoints(decodedText);
-        },
-        (errorMessage) => {
-          // Scanning in progress...
-        }
-      );
+    if (scanning) {
+      // Dynamically import to ensure window/DOM is ready
+      import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
+        html5QrcodeScanner = new Html5QrcodeScanner(
+          'reader',
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          /* verbose= */ false
+        );
+
+        html5QrcodeScanner.render(
+          async (decodedText) => {
+            html5QrcodeScanner.clear();
+            setScanning(false);
+            await handleAddPoints(decodedText);
+          },
+          (errorMessage) => {
+            // Scanning in progress...
+          }
+        );
+      });
     }
 
     return () => {
-      if (scanner) {
-        scanner.clear().catch((err) => console.error(err));
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.clear().catch((err) => console.error(err));
       }
     };
   }, [scanning]);
@@ -93,7 +96,7 @@ export default function ScannerPage() {
             value={spendAmount}
             onChange={(e) => setSpendAmount(e.target.value)}
             disabled={scanning || loading}
-            className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-lg font-mono focus:outline-none focus:border-red-500 transition"
+            className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-lg font-mono focus:outline-none focus:border-red-500 transition text-white"
           />
         </div>
 
@@ -115,7 +118,7 @@ export default function ScannerPage() {
         {/* Scanner Area */}
         {scanning ? (
           <div className="space-y-4">
-            <div id="reader" className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950"></div>
+            <div id="reader" className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 text-black"></div>
             <button
               onClick={() => setScanning(false)}
               className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl font-medium text-sm transition"
