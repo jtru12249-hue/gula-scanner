@@ -10,7 +10,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 });
     }
 
-    // 1. Create unique member entry in Firebase
+    // 1. Save member to Firebase to generate a unique ID
     const docRef = await addDoc(collection(db, 'members'), {
       name,
       phone,
@@ -19,13 +19,14 @@ export async function POST(request) {
     });
 
     const uniqueMemberId = docRef.id;
+    const apiKey = 'ww_live_a46693b6b87649115a26862018d83c75';
 
-    // 2. Call WalletWallet API with exact schema parameters
+    // 2. Request unique pass from WalletWallet using exact schema
     const walletRes = await fetch('https://api.walletwallet.dev/api/passes', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.WALLETWALLET_API_KEY}`
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         barcodeValue: uniqueMemberId,
@@ -52,11 +53,10 @@ export async function POST(request) {
 
     if (!walletRes.ok) {
       return NextResponse.json({ 
-        error: passData.message || JSON.stringify(passData) 
+        error: `WalletWallet rejected request (${walletRes.status}): ${passData.message || JSON.stringify(passData)}` 
       }, { status: walletRes.status });
     }
 
-    // Save pass ID to Firebase record
     const passId = passData.id || passData._id || passData.serialNumber;
     if (passId) {
       await updateDoc(docRef, { passId });
@@ -64,9 +64,16 @@ export async function POST(request) {
 
     const passUrl = passData.downloadUrl || passData.url || passData.passUrl || passData.appleWalletUrl;
 
+    if (!passUrl) {
+      return NextResponse.json({ 
+        error: 'Pass generated, but no download URL returned',
+        rawResponse: passData 
+      }, { status: 500 });
+    }
+
     return NextResponse.json({ success: true, memberId: uniqueMemberId, passUrl });
 
   } catch (error) {
-    return NextResponse.json({ error: error.message || 'Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server Exception' }, { status: 500 });
   }
 }
