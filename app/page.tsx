@@ -1,34 +1,41 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [memberId, setMemberId] = useState('');
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const [scannerStarted, setScannerStarted] = useState(false);
 
   useEffect(() => {
-    scannerRef.current = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      /* verbose= */ false
-    );
+    let html5QrCode: any = null;
 
-    scannerRef.current.render(
-      (decodedText) => {
-        setMemberId(decodedText);
-        setMessage('QR Code Scanned Successfully!');
-      },
-      (error) => {
-        // Ignore background frame errors
+    const startScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        html5QrCode = new Html5Qrcode("reader");
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText: string) => {
+            setMemberId(decodedText);
+            setMessage('QR Code Scanned Successfully!');
+          },
+          () => {} // Ignore scan errors
+        );
+        setScannerStarted(true);
+      } catch (err) {
+        console.error("Camera access error:", err);
       }
-    );
+    };
+
+    startScanner();
 
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(console.error);
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
       }
     };
   }, []);
@@ -76,8 +83,23 @@ export default function Home() {
     <main style={{ maxWidth: '450px', margin: '20px auto', padding: '20px', fontFamily: 'sans-serif' }}>
       <h2 style={{ textAlign: 'center' }}>GULA Scanner Terminal</h2>
 
-      {/* Camera Scanner Container */}
-      <div id="reader" style={{ width: '100%', marginBottom: '20px' }}></div>
+      {/* Video Stream Container */}
+      <div 
+        id="reader" 
+        style={{ 
+          width: '100%', 
+          minHeight: '260px', 
+          backgroundColor: '#f0f0f0', 
+          borderRadius: '8px', 
+          overflow: 'hidden', 
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        {!scannerStarted && <p style={{ color: '#666' }}>Requesting Camera Access...</p>}
+      </div>
 
       <div style={{ marginBottom: '15px' }}>
         <label style={{ fontWeight: 'bold' }}>Scanned Member ID:</label>
