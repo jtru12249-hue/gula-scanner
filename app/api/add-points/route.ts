@@ -1,26 +1,27 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
     const { memberId, spendAmount } = await req.json();
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Missing Member ID' }, { status: 400 });
+      return NextResponse.json({ error: 'No Pass ID detected from QR code.' }, { status: 400 });
     }
 
-    // Calculate points (10 points per dollar spent)
+    const apiKey = process.env.WALLETWALLET_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'WALLETWALLET_API_KEY is missing in Vercel settings.' }, { status: 500 });
+    }
+
     const pointsToAdd = spendAmount ? Math.floor(spendAmount * 10) : 0;
-    
-    // NOTE: Replace '100' with your actual database lookup later
-    const currentPoints = 100; 
+    const currentPoints = 100; // Replace with database lookup if used
     const updatedTotal = currentPoints + pointsToAdd;
 
-    // PATCH update: This explicit format prevents the QR code from disappearing
     const walletRes = await fetch(`https://api.walletwallet.dev/v1/passes/${memberId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.WALLETWALLET_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         primaryFields: [
@@ -40,7 +41,7 @@ export async function POST(req) {
     if (!walletRes.ok) {
       const errText = await walletRes.text();
       console.error('WalletWallet error:', errText);
-      throw new Error('Failed to update pass');
+      return NextResponse.json({ error: `Wallet API (${walletRes.status}): ${errText}` }, { status: walletRes.status });
     }
 
     return NextResponse.json({ 
@@ -49,7 +50,7 @@ export async function POST(req) {
       newTotal: updatedTotal 
     });
 
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Server Error' }, 
       { status: 500 }
