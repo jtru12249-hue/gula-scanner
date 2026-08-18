@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(req: Request) {
+export async function POST(req) {
   try {
     const { memberId, spendAmount } = await req.json();
 
@@ -8,13 +8,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing Member ID' }, { status: 400 });
     }
 
+    // Calculate points (10 points per dollar spent)
     const pointsToAdd = spendAmount ? Math.floor(spendAmount * 10) : 0;
     
-    // Fetch total or set calculated total
-    const currentPoints = 100; // Replace with database lookup if used
+    // NOTE: Replace '100' with your actual database lookup later
+    const currentPoints = 100; 
     const updatedTotal = currentPoints + pointsToAdd;
 
-    // PATCH update matching the exact Pass Editor keys
+    // PATCH update: This explicit format prevents the QR code from disappearing
     const walletRes = await fetch(`https://api.walletwallet.dev/v1/passes/${memberId}`, {
       method: 'PATCH',
       headers: {
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
       newTotal: updatedTotal 
     });
 
-  } catch (error: any) {
+  } catch (error) {
     return NextResponse.json(
       { error: error.message || 'Server Error' }, 
       { status: 500 }
