@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function ScannerPage() {
   const [scanning, setScanning] = useState(false);
   const [spendAmount, setSpendAmount] = useState('');
   const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let html5QrcodeScanner;
@@ -32,12 +33,10 @@ export default function ScannerPage() {
             setScanning(false);
             await handleAddPoints(decodedText);
           },
-          (errorMessage) => {
-            // Ignore frame-by-frame detection failures while searching for a QR code
-          }
+          () => {}
         );
-      }).catch((err) => {
-        setStatusMsg({ type: 'error', text: 'Camera error. Please check browser permissions.' });
+      }).catch(() => {
+        setStatusMsg({ type: 'error', text: 'Camera access error.' });
         setScanning(false);
       });
     }
@@ -48,6 +47,26 @@ export default function ScannerPage() {
       }
     };
   }, [scanning]);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setStatusMsg({ type: 'info', text: 'Reading image file...' });
+
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const html5QrCode = new Html5Qrcode('file-helper');
+      const decodedText = await html5QrCode.scanFile(file, true);
+      await handleAddPoints(decodedText);
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Could not detect a QR code in that image.' });
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleAddPoints = async (memberId) => {
     setLoading(true);
@@ -64,7 +83,6 @@ export default function ScannerPage() {
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || 'Failed to update points');
 
       setStatusMsg({
@@ -81,19 +99,20 @@ export default function ScannerPage() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 font-sans bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neutral-900 via-black to-black">
+      <div id="file-helper" className="hidden"></div>
       
-      <div className="w-full max-w-md backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(220,38,38,0.15)] flex flex-col space-y-8">
+      <div className="w-full max-w-md backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(220,38,38,0.15)] flex flex-col space-y-6">
         
         <div className="text-center">
           <h1 className="text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-700 uppercase drop-shadow-sm">
             GULA
           </h1>
-          <p className="text-xs text-neutral-400 mt-2 uppercase tracking-[0.3em] font-semibold">
+          <p className="text-xs text-neutral-400 mt-1 uppercase tracking-[0.3em] font-semibold">
             Staff Terminal
           </p>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <label className="text-xs font-bold text-neutral-500 uppercase tracking-widest pl-1">
             Order Total ($)
           </label>
@@ -112,41 +131,54 @@ export default function ScannerPage() {
         </div>
 
         {statusMsg.text && (
-          <div
-            className={`p-4 rounded-2xl text-sm font-semibold tracking-wide text-center transition-all ${
-              statusMsg.type === 'success'
-                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
-                : statusMsg.type === 'error'
-                ? 'bg-red-500/10 border border-red-500/30 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.1)]'
-                : 'bg-neutral-800/50 border border-neutral-700 text-neutral-300'
-            }`}
-          >
+          <div className={`p-4 rounded-2xl text-sm font-semibold tracking-wide text-center transition-all ${
+            statusMsg.type === 'success'
+              ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+              : statusMsg.type === 'error'
+              ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+              : 'bg-neutral-800/50 border border-neutral-700 text-neutral-300'
+          }`}>
             {statusMsg.text}
           </div>
         )}
 
-        <div className="pt-2">
+        <div className="space-y-3">
           {scanning ? (
             <div className="space-y-4">
-              <div 
-                id="reader" 
-                className="overflow-hidden rounded-2xl border-2 border-red-500/30 bg-black shadow-[0_0_30px_rgba(220,38,38,0.2)] [&>video]:object-cover"
-              ></div>
+              <div id="reader" className="overflow-hidden rounded-2xl border-2 border-red-500/30 bg-black [&>video]:object-cover"></div>
               <button
                 onClick={() => setScanning(false)}
-                className="w-full py-4 bg-neutral-900 hover:bg-neutral-800 border border-white/5 text-neutral-300 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all"
+                className="w-full py-4 bg-neutral-900 border border-white/5 text-neutral-300 rounded-2xl font-bold text-sm uppercase tracking-wider"
               >
                 Close Camera
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setScanning(true)}
-              disabled={loading}
-              className="w-full py-5 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 active:scale-[0.98] text-white font-black rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all duration-200 uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Processing...' : 'Scan Pass'}
-            </button>
+            <>
+              <button
+                onClick={() => setScanning(true)}
+                disabled={loading}
+                className="w-full py-5 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-black rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all uppercase tracking-widest disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : 'Scan via Camera'}
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading}
+                className="w-full py-4 bg-neutral-900 border border-white/10 hover:bg-neutral-800 text-neutral-300 font-bold rounded-2xl transition-all uppercase tracking-wider text-sm"
+              >
+                Upload Screenshot Image
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </>
           )}
         </div>
 
