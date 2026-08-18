@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   try {
     const { name, email } = await req.json();
 
-    // 1. Create member in Firebase Firestore first to get a unique document ID
+    // 1. Save member to Firebase Firestore
     const docRef = await addDoc(collection(db, 'members'), {
       name: name || 'GULA Member',
       email: email || '',
@@ -14,9 +14,9 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
     });
 
-    const memberId = docRef.id; // e.g., "x1fjvv504r77yPs7NqWw"
+    const memberId = docRef.id;
 
-    // 2. Issue pass in WalletWallet using the exact same ID as serialNumber
+    // 2. Issue pass in WalletWallet using the exact same ID
     const walletRes = await fetch('https://api.walletwallet.dev/v1/passes', {
       method: 'POST',
       headers: {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
         'Authorization': `Bearer ${process.env.WALLETWALLET_API_KEY}`,
       },
       body: JSON.stringify({
-        serialNumber: memberId, // Forces WalletWallet ID to match Firebase ID
+        serialNumber: memberId,
         logoText: 'GULA EXPRESS',
         primaryFields: [
           {
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         ],
         barcode: {
           type: 'QR',
-          value: memberId, // Scans as the exact same ID
+          value: memberId,
         },
       }),
     });
@@ -50,11 +50,9 @@ export async function POST(req: Request) {
     const walletData = await walletRes.json();
 
     if (!walletRes.ok) {
-      console.error('Wallet error:', walletData);
       throw new Error(walletData.error || 'Failed to issue Wallet pass');
     }
 
-    // 3. Return the Pass URL to display on your /join page
     return NextResponse.json({
       success: true,
       memberId: memberId,
@@ -62,7 +60,6 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    console.error('Create Member Error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal Server Error' },
       { status: 500 }
