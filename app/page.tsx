@@ -8,7 +8,6 @@ export default function ScannerPage() {
   const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
   const [loading, setLoading] = useState(false);
 
-  // Safely load the scanner only on the client side
   useEffect(() => {
     let html5QrcodeScanner;
 
@@ -16,7 +15,14 @@ export default function ScannerPage() {
       import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
         html5QrcodeScanner = new Html5QrcodeScanner(
           'reader',
-          { fps: 10, qrbox: { width: 250, height: 250 } },
+          { 
+            fps: 15, 
+            qrbox: { width: 280, height: 280 },
+            aspectRatio: 1.0,
+            experimentalFeatures: {
+              useBarCodeDetectorIfSupported: true
+            }
+          },
           false
         );
 
@@ -27,11 +33,11 @@ export default function ScannerPage() {
             await handleAddPoints(decodedText);
           },
           (errorMessage) => {
-            // Silently handle ongoing scan frames
+            // Ignore frame-by-frame detection failures while searching for a QR code
           }
         );
-      }).catch(err => {
-        setStatusMsg({ type: 'error', text: 'Camera initialization failed. Check permissions.' });
+      }).catch((err) => {
+        setStatusMsg({ type: 'error', text: 'Camera error. Please check browser permissions.' });
         setScanning(false);
       });
     }
@@ -45,7 +51,7 @@ export default function ScannerPage() {
 
   const handleAddPoints = async (memberId) => {
     setLoading(true);
-    setStatusMsg({ type: 'info', text: 'Authenticating and adding points...' });
+    setStatusMsg({ type: 'info', text: 'Adding points...' });
 
     try {
       const res = await fetch('/api/add-points', {
@@ -78,7 +84,6 @@ export default function ScannerPage() {
       
       <div className="w-full max-w-md backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(220,38,38,0.15)] flex flex-col space-y-8">
         
-        {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-700 uppercase drop-shadow-sm">
             GULA
@@ -88,7 +93,6 @@ export default function ScannerPage() {
           </p>
         </div>
 
-        {/* Input Area */}
         <div className="space-y-3">
           <label className="text-xs font-bold text-neutral-500 uppercase tracking-widest pl-1">
             Order Total ($)
@@ -107,7 +111,6 @@ export default function ScannerPage() {
           </div>
         </div>
 
-        {/* Status Toast */}
         {statusMsg.text && (
           <div
             className={`p-4 rounded-2xl text-sm font-semibold tracking-wide text-center transition-all ${
@@ -122,10 +125,9 @@ export default function ScannerPage() {
           </div>
         )}
 
-        {/* Scanner & Controls */}
         <div className="pt-2">
           {scanning ? (
-            <div className="space-y-4 animate-in fade-in zoom-in duration-300">
+            <div className="space-y-4">
               <div 
                 id="reader" 
                 className="overflow-hidden rounded-2xl border-2 border-red-500/30 bg-black shadow-[0_0_30px_rgba(220,38,38,0.2)] [&>video]:object-cover"
