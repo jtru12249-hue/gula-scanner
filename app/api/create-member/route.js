@@ -1,79 +1,71 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 
-export async function POST(request) {
+export async function POST(req: Request) {
   try {
-    const { name, phone } = await request.json();
+    const { name, email } = await req.json();
 
-    if (!name || !phone) {
-      return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 });
-    }
-
-    // 1. Save member to Firebase
+    // 1. Create member in Firebase Firestore first to get a unique document ID
     const docRef = await addDoc(collection(db, 'members'), {
-      name,
-      phone,
+      name: name || 'GULA Member',
+      email: email || '',
       points: 0,
-      createdAt: new Date()
+      createdAt: new Date().toISOString(),
     });
 
-    const uniqueMemberId = docRef.id;
-    const apiKey = 'ww_live_a46693b6b87649115a26862018d83c75';
+    const memberId = docRef.id; // e.g., "x1fjvv504r77yPs7NqWw"
 
-    // 2. Request pass creation from WalletWallet
-    const walletRes = await fetch('https://api.walletwallet.dev/api/passes', {
+    // 2. Issue pass in WalletWallet using the exact same ID as serialNumber
+    const walletRes = await fetch('https://api.walletwallet.dev/v1/passes', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${process.env.WALLETWALLET_API_KEY}`,
       },
       body: JSON.stringify({
-        barcodeValue: uniqueMemberId,
-        barcodeFormat: 'QR',
+        serialNumber: memberId, // Forces WalletWallet ID to match Firebase ID
         logoText: 'GULA EXPRESS',
-        colorPreset: 'red',
-        color: '#ac1b1b',
-        logoURL: 'https://i.imgur.com/Q6JfH2E.jpeg',
-        iconURL: 'https://i.imgur.com/Q6JfH2E.jpeg',
         primaryFields: [
-          { label: 'POINTS', value: '0' }
+          {
+            key: 'POINTS',
+            value: '0',
+            label: 'POINTS',
+          },
         ],
         secondaryFields: [
-          { label: 'MEMBER', value: name.toUpperCase() },
-          { label: 'NEXT REWARD', value: 'FREE REWARD AT 1,000 POINTS!!' }
+          {
+            key: 'MEMBER',
+            value: name ? name.toUpperCase() : 'GULA MEMBER',
+            label: 'MEMBER',
+          },
         ],
-        backFields: [
-          { label: 'Program Details', value: 'Earn 10 points for every $1 spent at GULA EXPRESS.' }
-        ]
-      })
+        barcode: {
+          type: 'QR',
+          value: memberId, // Scans as the exact same ID
+        },
+      }),
     });
 
-    const passData = await walletRes.json().catch(() => ({}));
+    const walletData = await walletRes.json();
 
     if (!walletRes.ok) {
-      return NextResponse.json({ 
-        error: `WalletWallet error (${walletRes.status}): ${passData.message || JSON.stringify(passData)}` 
-      }, { status: walletRes.status });
+      console.error('Wallet error:', walletData);
+      throw new Error(walletData.error || 'Failed to issue Wallet pass');
     }
 
-    // Extract ID or serial number
-    const passId = passData.id || passData._id || passData.serialNumber || passData.serial;
+    // 3. Return the Pass URL to display on your /join page
+    return NextResponse.json({
+      success: true,
+      memberId: memberId,
+      passUrl: walletData.url || walletData.passUrl,
+    });
 
-    if (passId) {
-      await updateDoc(docRef, { passId });
-    }
-
-    // Construct valid download URL
-    const passUrl = passData.downloadUrl || 
-                    passData.url || 
-                    passData.passUrl || 
-                    passData.appleWalletUrl || 
-                    (passId ? `https://api.walletwallet.dev/p/${passId}` : null);
-
-    return NextResponse.json({ success: true, memberId: uniqueMemberId, passUrl });
-
-  } catch (error) {
-    return NextResponse.json({ error: error.message || 'Server Exception' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Create Member Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
